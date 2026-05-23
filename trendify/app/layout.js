@@ -3,6 +3,8 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { AuthProvider } from "../context/AuthContext";
 import { CartProvider } from "../context/CartContext";
+import { WishlistProvider } from "../context/WishlistContext";
+import { ToastProvider } from "../context/ToastContext";
 
 export const metadata = {
   title: "Trendify — Premium E-Commerce Store",
@@ -15,9 +17,13 @@ export default function RootLayout({ children }) {
       <body>
         <AuthProvider>
           <CartProvider>
-            <Navbar />
-            <main>{children}</main>
-            <Footer />
+            <WishlistProvider>
+              <ToastProvider>
+                <Navbar />
+                <main>{children}</main>
+                <Footer />
+              </ToastProvider>
+            </WishlistProvider>
           </CartProvider>
         </AuthProvider>
       </body>

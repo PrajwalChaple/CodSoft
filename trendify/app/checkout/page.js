@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { CreditCard, Banknote, Smartphone, Loader2, CheckCircle } from "lucide-react";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
 import Link from "next/link";
 
 const paymentOptions = [
@@ -16,6 +17,7 @@ export default function CheckoutPage() {
   const { cart, subtotal, shipping, discount, total, clearCart, cartCount } = useCart();
   const { user } = useAuth();
   const router = useRouter();
+  const { addToast } = useToast();
 
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [loading, setLoading] = useState(false);
@@ -41,7 +43,8 @@ export default function CheckoutPage() {
     setError("");
 
     if (!user) {
-      setError("Please login to place an order.");
+      addToast("Please login to place an order", "error");
+      router.push("/login");
       return;
     }
 
@@ -82,6 +85,7 @@ export default function CheckoutPage() {
       setOrderPlaced(true);
       setOrderId(data.order.id);
       clearCart();
+      addToast("Order placed successfully! 🎉", "success");
     } catch (err) {
       setError(err.message);
     } finally {

@@ -3,15 +3,20 @@ import { Heart } from "lucide-react";
 import Link from "next/link";
 import StarRating from "./StarRating";
 import { useCart } from "../context/CartContext";
+import { useWishlist } from "../context/WishlistContext";
+import { useToast } from "../context/ToastContext";
 
 export default function ProductCard({ product, filled = false }) {
   const { addToCart } = useCart();
+  const { toggleWishlist, isInWishlist } = useWishlist();
+  const { addToast } = useToast();
   const priceParts = product.price.toFixed(2).split(".");
   const discount = product.originalPrice
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
     : null;
 
   const productId = product._id || product.id;
+  const wishlisted = isInWishlist(productId);
 
   function handleAddToCart(e) {
     e.preventDefault();
@@ -24,6 +29,17 @@ export default function ProductCard({ product, filled = false }) {
       currency: product.currency,
       stock: product.stock,
     });
+    addToast(`${product.name} added to cart!`, "success");
+  }
+
+  function handleWishlist(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleWishlist({ ...product, _id: productId });
+    addToast(
+      wishlisted ? `${product.name} removed from wishlist` : `${product.name} added to wishlist ❤️`,
+      wishlisted ? "info" : "success"
+    );
   }
 
   return (
@@ -32,8 +48,12 @@ export default function ProductCard({ product, filled = false }) {
         {discount && (
           <span className="product-card__badge">-{discount}%</span>
         )}
-        <button className="product-card__wishlist" aria-label="Add to wishlist">
-          <Heart size={16} />
+        <button
+          className={`product-card__wishlist ${wishlisted ? "product-card__wishlist--active" : ""}`}
+          aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
+          onClick={handleWishlist}
+        >
+          <Heart size={16} fill={wishlisted ? "currentColor" : "none"} />
         </button>
         <Link href={`/product/${productId}`}>
           <img

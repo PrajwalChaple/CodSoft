@@ -1,19 +1,23 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Truck, RotateCcw, ArrowRight, CheckCircle } from "lucide-react";
+import { Truck, RotateCcw, ArrowRight, CheckCircle, Heart } from "lucide-react";
 import { products } from "../../../data/products";
 import StarRating from "../../../components/StarRating";
 import ColorSwatches from "../../../components/ColorSwatches";
 import QuantitySelector from "../../../components/QuantitySelector";
 import ProductCard from "../../../components/ProductCard";
 import { useCart } from "../../../context/CartContext";
+import { useWishlist } from "../../../context/WishlistContext";
+import { useToast } from "../../../context/ToastContext";
 import { useState } from "react";
 
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { addToCart } = useCart();
+  const { toggleWishlist, isInWishlist } = useWishlist();
+  const { addToast } = useToast();
   const product = products.find((p) => p.id === Number(params.id));
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
@@ -53,12 +57,23 @@ export default function ProductDetailPage() {
       product.colorNames?.[selectedColor] || ""
     );
     setAddedToCart(true);
+    addToast(`${product.name} added to cart! 🛒`, "success");
     setTimeout(() => setAddedToCart(false), 2000);
   }
 
   function handleBuyNow() {
     handleAddToCart();
     router.push("/cart");
+  }
+
+  const wishlisted = isInWishlist(product.id);
+
+  function handleWishlistToggle() {
+    toggleWishlist(product);
+    addToast(
+      wishlisted ? `${product.name} removed from wishlist` : `${product.name} added to wishlist ❤️`,
+      wishlisted ? "info" : "success"
+    );
   }
 
   return (
@@ -169,6 +184,14 @@ export default function ProductDetailPage() {
               onClick={handleAddToCart}
             >
               {addedToCart ? <><CheckCircle size={18} /> Added!</> : "Add to Cart"}
+            </button>
+            <button
+              className={`btn ${wishlisted ? "btn--danger" : "btn--outline"}`}
+              style={{ padding: "12px 16px", flexShrink: 0 }}
+              onClick={handleWishlistToggle}
+              aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
+            >
+              <Heart size={20} fill={wishlisted ? "currentColor" : "none"} />
             </button>
           </div>
 

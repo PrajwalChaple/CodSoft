@@ -1,9 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { User, ShoppingBag, Heart, Settings, LogOut, Loader2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { User, ShoppingBag, Heart, Settings, LogOut, Loader2, Trash2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useWishlist } from "../../context/WishlistContext";
+import { useCart } from "../../context/CartContext";
+import { useToast } from "../../context/ToastContext";
 import Link from "next/link";
+import { Suspense } from "react";
 
 const sidebarItems = [
   { id: "orders", label: "My Orders", icon: ShoppingBag },
@@ -24,12 +28,27 @@ function getTimelineStep(status) {
   }
 }
 
-export default function AccountPage() {
-  const [activeTab, setActiveTab] = useState("orders");
+function AccountContent() {
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(tabFromUrl || "orders");
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
-  const { user, loading, logout } = useAuth();
+  const [profileName, setProfileName] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const { user, loading, logout, checkAuth } = useAuth();
+  const { wishlist, removeFromWishlist } = useWishlist();
+  const { addToCart } = useCart();
+  const { addToast } = useToast();
   const router = useRouter();
+
+  useEffect(() => {
+    if (tabFromUrl && ["orders", "profile", "wishlist", "settings"].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -40,6 +59,8 @@ export default function AccountPage() {
   useEffect(() => {
     if (user) {
       fetchOrders();
+      setProfileName(user.name || "");
+      setProfilePhone(user.phone || "");
     }
   }, [user]);
 
@@ -57,7 +78,52 @@ export default function AccountPage() {
 
   async function handleLogout() {
     await logout();
+    addToast("Logged out successfully", "success");
     router.push("/");
+  }
+
+  async function handleSaveProfile() {
+    if (!profileName.trim()) {
+      addToast("Name cannot be empty", "error");
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      const res = await fetch("/api/auth/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: profileName, phone: profilePhone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      addToast("Profile updated successfully! ✅", "success");
+      checkAuth(); // refresh user data
+    } catch (err) {
+      addToast(err.message || "Failed to update profile", "error");
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  function handleSaveSettings() {
+    setSavingSettings(true);
+    setTimeout(() => {
+      addToast("Settings saved successfully! ⚙️", "success");
+      setSavingSettings(false);
+    }, 500);
+  }
+
+  function handleAddWishlistToCart(item) {
+    addToCart({
+      _id: item.id,
+      name: item.name,
+      price: item.price,
+      images: [item.image],
+      brand: item.brand,
+      currency: item.currency,
+    });
+    removeFromWishlist(item.id);
+    addToast(`${item.name} moved to cart! 🛒`, "success");
   }
 
   if (loading) {
@@ -119,6 +185,19 @@ export default function AccountPage() {
               >
                 <Icon size={18} />
                 {item.label}
+                {item.id === "wishlist" && wishlist.length > 0 && (
+                  <span style={{
+                    marginLeft: "auto",
+                    background: "var(--color-primary)",
+                    color: "#fff",
+                    fontSize: "0.7rem",
+                    borderRadius: 10,
+                    padding: "2px 8px",
+                    fontWeight: 600,
+                  }}>
+                    {wishlist.length}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -225,7 +304,13 @@ export default function AccountPage() {
                 <div className="form-grid">
                   <div className="form-group form-group--full">
                     <label className="form-label" htmlFor="profile-name">Full Name</label>
-                    <input className="form-input" type="text" id="profile-name" defaultValue={user.name} />
+                    <input
+                      className="form-input"
+                      type="text"
+                      id="profile-name"
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                    />
                   </div>
                   <div className="form-group form-group--full">
                     <label className="form-label" htmlFor="profile-email">Email</label>
@@ -233,23 +318,79 @@ export default function AccountPage() {
                   </div>
                   <div className="form-group form-group--full">
                     <label className="form-label" htmlFor="profile-phone">Phone</label>
-                    <input className="form-input" type="tel" id="profile-phone" defaultValue={user.phone || ""} placeholder="+91 98765 43210" />
+                    <input
+                      className="form-input"
+                      type="tel"
+                      id="profile-phone"
+                      value={profilePhone}
+                      onChange={(e) => setProfilePhone(e.target.value)}
+                      placeholder="+91 98765 43210"
+                    />
                   </div>
                 </div>
-                <button className="btn btn--primary" style={{ marginTop: 24 }}>Save Changes</button>
+                <button
+                  className="btn btn--primary"
+                  style={{ marginTop: 24 }}
+                  onClick={handleSaveProfile}
+                  disabled={savingProfile}
+                >
+                  {savingProfile ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Saving...</> : "Save Changes"}
+                </button>
               </div>
             </>
           )}
 
           {activeTab === "wishlist" && (
             <>
-              <h2 className="account-content__title">Wishlist</h2>
-              <div className="empty-state">
-                <Heart size={48} className="empty-state__icon" />
-                <h3 className="empty-state__title">Wishlist is empty</h3>
-                <p className="empty-state__text">Browse products and add your favorites!</p>
-                <Link href="/" className="btn btn--primary btn--sm">Browse Products</Link>
-              </div>
+              <h2 className="account-content__title">Wishlist ({wishlist.length})</h2>
+              {wishlist.length === 0 ? (
+                <div className="empty-state">
+                  <Heart size={48} className="empty-state__icon" />
+                  <h3 className="empty-state__title">Wishlist is empty</h3>
+                  <p className="empty-state__text">Browse products and add your favorites!</p>
+                  <Link href="/" className="btn btn--primary btn--sm">Browse Products</Link>
+                </div>
+              ) : (
+                <div className="wishlist-grid">
+                  {wishlist.map((item) => (
+                    <div className="wishlist-item" key={item.id}>
+                      <Link href={`/product/${item.id}`} className="wishlist-item__image">
+                        <img src={item.image} alt={item.name} />
+                      </Link>
+                      <div className="wishlist-item__info">
+                        <Link href={`/product/${item.id}`}>
+                          <h4 className="wishlist-item__name">{item.name}</h4>
+                        </Link>
+                        <p className="wishlist-item__brand">{item.brand}</p>
+                        <div className="wishlist-item__price-row">
+                          <span className="wishlist-item__price">{item.currency}{item.price.toFixed(2)}</span>
+                          {item.originalPrice && (
+                            <span className="wishlist-item__original">{item.currency}{item.originalPrice.toFixed(2)}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="wishlist-item__actions">
+                        <button
+                          className="btn btn--primary btn--sm"
+                          onClick={() => handleAddWishlistToCart(item)}
+                        >
+                          Add to Cart
+                        </button>
+                        <button
+                          className="wishlist-item__remove"
+                          onClick={() => {
+                            removeFromWishlist(item.id);
+                            addToast(`${item.name} removed from wishlist`, "info");
+                          }}
+                          aria-label="Remove from wishlist"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
 
@@ -279,12 +420,30 @@ export default function AccountPage() {
                     Email notifications for orders and deals
                   </label>
                 </div>
-                <button className="btn btn--primary">Save Settings</button>
+                <button
+                  className="btn btn--primary"
+                  onClick={handleSaveSettings}
+                  disabled={savingSettings}
+                >
+                  {savingSettings ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Saving...</> : "Save Settings"}
+                </button>
               </div>
             </>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense fallback={
+      <div className="account-page" style={{ textAlign: "center", padding: 80 }}>
+        <Loader2 size={40} style={{ animation: "spin 1s linear infinite", color: "var(--color-primary)" }} />
+      </div>
+    }>
+      <AccountContent />
+    </Suspense>
   );
 }

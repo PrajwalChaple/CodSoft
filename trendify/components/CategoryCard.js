@@ -14,7 +14,7 @@ export default function CategoryCard({ category }) {
   const IconComp = iconMap[category.icon] || ShoppingBag;
 
   return (
-    <Link href="/" className="category-card">
+    <Link href={`/?category=${encodeURIComponent(category.name)}`} className="category-card">
       <div className="category-card__icon">
         <IconComp size={22} />
       </div>
