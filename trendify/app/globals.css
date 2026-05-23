@@ -395,6 +395,11 @@ ul, ol {
   50% { transform: translateY(-12px); }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* ===== FILTER BAR ===== */
 .filter-bar {
   max-width: var(--max-width);

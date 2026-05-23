@@ -1,10 +1,40 @@
 "use client";
 import Link from "next/link";
-import { Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Mail, Lock, User, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "../../context/AuthContext";
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { register } = useAuth();
+  const router = useRouter();
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await register(name, email, password);
+      router.push("/account");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="auth-page">
@@ -12,7 +42,22 @@ export default function RegisterPage() {
         <h1 className="auth-card__title">Create Account</h1>
         <p className="auth-card__subtitle">Join Trendify for exclusive deals &amp; offers</p>
 
-        <form className="auth-card__form" onSubmit={(e) => e.preventDefault()}>
+        {error && (
+          <div style={{
+            background: "#FEE2E2",
+            color: "#DC2626",
+            padding: "10px 14px",
+            borderRadius: 8,
+            fontSize: "0.85rem",
+            fontWeight: 500,
+            marginBottom: 16,
+            textAlign: "center",
+          }}>
+            {error}
+          </div>
+        )}
+
+        <form className="auth-card__form" onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label" htmlFor="register-name">Full Name</label>
             <div style={{ position: "relative" }}>
@@ -22,6 +67,9 @@ export default function RegisterPage() {
                 id="register-name"
                 placeholder="John Doe"
                 style={{ paddingLeft: 40 }}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
               />
               <User
                 size={18}
@@ -45,6 +93,9 @@ export default function RegisterPage() {
                 id="register-email"
                 placeholder="you@example.com"
                 style={{ paddingLeft: 40 }}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
               />
               <Mail
                 size={18}
@@ -68,6 +119,10 @@ export default function RegisterPage() {
                 id="register-password"
                 placeholder="Create a strong password"
                 style={{ paddingLeft: 40, paddingRight: 40 }}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
               />
               <Lock
                 size={18}
@@ -108,6 +163,9 @@ export default function RegisterPage() {
                 id="register-confirmPassword"
                 placeholder="Confirm your password"
                 style={{ paddingLeft: 40 }}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
               />
               <Lock
                 size={18}
@@ -122,15 +180,8 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-            <input type="checkbox" id="register-terms" style={{ marginTop: 4 }} />
-            <label htmlFor="register-terms" style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", lineHeight: 1.4 }}>
-              I agree to the <a href="#" style={{ color: "var(--color-primary)", fontWeight: 500 }}>Terms of Service</a> and <a href="#" style={{ color: "var(--color-primary)", fontWeight: 500 }}>Privacy Policy</a>
-            </label>
-          </div>
-
-          <button type="submit" className="btn btn--primary btn--full">
-            Create Account
+          <button type="submit" className="btn btn--primary btn--full" disabled={loading}>
+            {loading ? <><Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> Creating Account...</> : "Create Account"}
           </button>
         </form>
 

@@ -1,6 +1,8 @@
 import "./globals.css";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { AuthProvider } from "../context/AuthContext";
+import { CartProvider } from "../context/CartContext";
 
 export const metadata = {
   title: "Trendify — Premium E-Commerce Store",
@@ -11,9 +13,13 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <Navbar />
-        <main>{children}</main>
-        <Footer />
+        <AuthProvider>
+          <CartProvider>
+            <Navbar />
+            <main>{children}</main>
+            <Footer />
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );

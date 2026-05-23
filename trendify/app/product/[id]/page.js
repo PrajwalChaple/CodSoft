@@ -1,19 +1,24 @@
 "use client";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Truck, RotateCcw, ArrowRight } from "lucide-react";
+import { Truck, RotateCcw, ArrowRight, CheckCircle } from "lucide-react";
 import { products } from "../../../data/products";
 import StarRating from "../../../components/StarRating";
 import ColorSwatches from "../../../components/ColorSwatches";
 import QuantitySelector from "../../../components/QuantitySelector";
 import ProductCard from "../../../components/ProductCard";
+import { useCart } from "../../../context/CartContext";
 import { useState } from "react";
 
 export default function ProductDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const { addToCart } = useCart();
   const product = products.find((p) => p.id === Number(params.id));
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
+  const [selectedColor, setSelectedColor] = useState(0);
+  const [addedToCart, setAddedToCart] = useState(false);
 
   if (!product) {
     return (
@@ -32,6 +37,29 @@ export default function ProductDetailPage() {
     .slice(0, 4);
 
   const recentProducts = products.filter((p) => p.id !== product.id).slice(0, 4);
+
+  function handleAddToCart() {
+    addToCart(
+      {
+        _id: product.id,
+        name: product.name,
+        price: product.price,
+        images: product.images,
+        brand: product.brand,
+        currency: product.currency,
+        stock: product.stock,
+      },
+      quantity,
+      product.colorNames?.[selectedColor] || ""
+    );
+    setAddedToCart(true);
+    setTimeout(() => setAddedToCart(false), 2000);
+  }
+
+  function handleBuyNow() {
+    handleAddToCart();
+    router.push("/cart");
+  }
 
   return (
     <div className="pdp">
@@ -99,7 +127,20 @@ export default function ProductDetailPage() {
 
           {/* Color Swatches */}
           {product.colors.length > 0 && (
-            <ColorSwatches colors={product.colors} colorNames={product.colorNames} />
+            <div>
+              <h4 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: 12 }}>Choose a Color</h4>
+              <div className="color-swatches">
+                {product.colors.map((color, i) => (
+                  <button
+                    key={i}
+                    className={`color-swatch ${selectedColor === i ? "color-swatch--active" : ""}`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => setSelectedColor(i)}
+                    title={product.colorNames[i]}
+                  />
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Quantity & Stock */}
@@ -119,8 +160,16 @@ export default function ProductDetailPage() {
 
           {/* Buttons */}
           <div className="pdp__buttons">
-            <button className="btn btn--primary" style={{ flex: 1 }}>Buy Now</button>
-            <button className="btn btn--outline" style={{ flex: 1 }}>Add to Cart</button>
+            <button className="btn btn--primary" style={{ flex: 1 }} onClick={handleBuyNow}>
+              Buy Now
+            </button>
+            <button
+              className="btn btn--outline"
+              style={{ flex: 1 }}
+              onClick={handleAddToCart}
+            >
+              {addedToCart ? <><CheckCircle size={18} /> Added!</> : "Add to Cart"}
+            </button>
           </div>
 
           {/* Info Cards */}

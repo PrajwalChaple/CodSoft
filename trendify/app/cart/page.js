@@ -1,43 +1,13 @@
 "use client";
-import { useState } from "react";
 import Link from "next/link";
 import { Trash2, ShoppingBag } from "lucide-react";
-import { products } from "../../data/products";
 import QuantitySelector from "../../components/QuantitySelector";
-
-const initialCart = [
-  { productId: 2, quantity: 1, color: "Pink" },
-  { productId: 1, quantity: 2, color: "Black" },
-  { productId: 3, quantity: 1, color: "Black" },
-];
+import { useCart } from "../../context/CartContext";
 
 export default function CartPage() {
-  const [cartItems, setCartItems] = useState(initialCart);
+  const { cart, cartCount, subtotal, shipping, discount, total, updateQuantity, removeFromCart } = useCart();
 
-  const getProduct = (id) => products.find((p) => p.id === id);
-
-  const updateQuantity = (index, newQty) => {
-    if (newQty < 1) return;
-    setCartItems((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, quantity: newQty } : item))
-    );
-  };
-
-  const removeItem = (index) => {
-    setCartItems((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const subtotal = cartItems.reduce((sum, item) => {
-    const product = getProduct(item.productId);
-    return sum + (product ? product.price * item.quantity : 0);
-  }, 0);
-
-  const shipping = subtotal > 50 ? 0 : 9.99;
-  const discount = subtotal > 200 ? subtotal * 0.05 : 0;
-  const total = subtotal + shipping - discount;
-  const freeShippingProgress = Math.min((subtotal / 50) * 100, 100);
-
-  if (cartItems.length === 0) {
+  if (cart.length === 0) {
     return (
       <div className="cart-page">
         <div className="empty-state">
@@ -52,52 +22,52 @@ export default function CartPage() {
     );
   }
 
+  const freeShippingProgress = Math.min((subtotal / 50) * 100, 100);
+
   return (
     <div className="cart-page">
-      <h1 className="cart-page__title">Shopping Cart ({cartItems.length})</h1>
+      <h1 className="cart-page__title">Shopping Cart ({cartCount})</h1>
 
       <div className="cart-page__layout">
         {/* Cart Items */}
         <div className="cart-page__items">
-          {cartItems.map((item, index) => {
-            const product = getProduct(item.productId);
-            if (!product) return null;
-            return (
-              <div className="cart-item" key={index}>
-                <div className="cart-item__image">
-                  <img src={product.images[0]} alt={product.name} />
-                </div>
-                <div className="cart-item__details">
-                  <h3 className="cart-item__name">{product.name}</h3>
-                  <p className="cart-item__meta">Color: {item.color} &middot; {product.brand}</p>
-                  <div className="cart-item__actions">
-                    <QuantitySelector
-                      quantity={item.quantity}
-                      onIncrease={() => updateQuantity(index, item.quantity + 1)}
-                      onDecrease={() => updateQuantity(index, item.quantity - 1)}
-                    />
-                    <button
-                      className="cart-item__remove"
-                      onClick={() => removeItem(index)}
-                      aria-label="Remove item"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </div>
-                <div className="cart-item__price">
-                  {product.currency}{(product.price * item.quantity).toFixed(2)}
+          {cart.map((item, index) => (
+            <div className="cart-item" key={`${item.productId}-${item.color}-${index}`}>
+              <div className="cart-item__image">
+                <img src={item.image} alt={item.name} />
+              </div>
+              <div className="cart-item__details">
+                <h3 className="cart-item__name">{item.name}</h3>
+                <p className="cart-item__meta">
+                  {item.color ? `Color: ${item.color} · ` : ""}{item.brand}
+                </p>
+                <div className="cart-item__actions">
+                  <QuantitySelector
+                    quantity={item.quantity}
+                    onIncrease={() => updateQuantity(item.productId, item.color, item.quantity + 1)}
+                    onDecrease={() => updateQuantity(item.productId, item.color, item.quantity - 1)}
+                  />
+                  <button
+                    className="cart-item__remove"
+                    onClick={() => removeFromCart(item.productId, item.color)}
+                    aria-label="Remove item"
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 </div>
               </div>
-            );
-          })}
+              <div className="cart-item__price">
+                {item.currency}{(item.price * item.quantity).toFixed(2)}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Order Summary */}
         <div className="order-summary">
           <h3 className="order-summary__title">Order Summary</h3>
 
-          {subtotal < 50 && (
+          {subtotal < 50 ? (
             <div className="order-summary__shipping-progress">
               🚚 Add ${(50 - subtotal).toFixed(2)} more for FREE shipping!
               <div style={{
@@ -116,9 +86,7 @@ export default function CartPage() {
                 }} />
               </div>
             </div>
-          )}
-
-          {subtotal >= 50 && (
+          ) : (
             <div className="order-summary__shipping-progress">
               ✅ You qualify for FREE shipping!
             </div>

@@ -1,57 +1,74 @@
 "use client";
-import { useState } from "react";
-import { User, ShoppingBag, Heart, Settings, LogOut, Package } from "lucide-react";
-import { products } from "../../data/products";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { User, ShoppingBag, Heart, Settings, LogOut, Loader2 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import Link from "next/link";
 
 const sidebarItems = [
-  { id: "profile", label: "My Profile", icon: User },
   { id: "orders", label: "My Orders", icon: ShoppingBag },
+  { id: "profile", label: "My Profile", icon: User },
   { id: "wishlist", label: "Wishlist", icon: Heart },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
-const orders = [
-  {
-    id: "ORD-2026-001",
-    date: "May 20, 2026",
-    status: "delivered",
-    statusLabel: "Delivered",
-    items: [
-      { productId: 2, quantity: 1 },
-      { productId: 10, quantity: 1 },
-    ],
-    total: 608.0,
-    timelineStep: 3,
-  },
-  {
-    id: "ORD-2026-002",
-    date: "May 22, 2026",
-    status: "shipped",
-    statusLabel: "Shipped",
-    items: [{ productId: 1, quantity: 2 }],
-    total: 178.0,
-    timelineStep: 2,
-  },
-  {
-    id: "ORD-2026-003",
-    date: "May 23, 2026",
-    status: "processing",
-    statusLabel: "Processing",
-    items: [
-      { productId: 8, quantity: 1 },
-      { productId: 15, quantity: 1 },
-    ],
-    total: 1228.0,
-    timelineStep: 1,
-  },
-];
-
 const timelineSteps = ["Order Placed", "Processing", "Shipped", "Delivered"];
+
+function getTimelineStep(status) {
+  switch (status) {
+    case "processing": return 1;
+    case "shipped": return 2;
+    case "delivered": return 3;
+    case "cancelled": return 0;
+    default: return 1;
+  }
+}
 
 export default function AccountPage() {
   const [activeTab, setActiveTab] = useState("orders");
+  const [orders, setOrders] = useState([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const { user, loading, logout } = useAuth();
+  const router = useRouter();
 
-  const getProduct = (id) => products.find((p) => p.id === id);
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login");
+    }
+  }, [user, loading, router]);
+
+  useEffect(() => {
+    if (user) {
+      fetchOrders();
+    }
+  }, [user]);
+
+  async function fetchOrders() {
+    try {
+      const res = await fetch("/api/orders");
+      const data = await res.json();
+      if (data.orders) setOrders(data.orders);
+    } catch (err) {
+      console.error("Failed to fetch orders:", err);
+    } finally {
+      setLoadingOrders(false);
+    }
+  }
+
+  async function handleLogout() {
+    await logout();
+    router.push("/");
+  }
+
+  if (loading) {
+    return (
+      <div className="account-page" style={{ textAlign: "center", padding: 80 }}>
+        <Loader2 size={40} style={{ animation: "spin 1s linear infinite", color: "var(--color-primary)" }} />
+      </div>
+    );
+  }
+
+  if (!user) return null;
 
   return (
     <div className="account-page">
@@ -82,12 +99,12 @@ export default function AccountPage() {
                 fontWeight: 700,
               }}
             >
-              P
+              {user.name?.charAt(0)?.toUpperCase() || "U"}
             </div>
             <div>
-              <h4 style={{ fontWeight: 600, fontSize: "0.95rem" }}>Prajwal</h4>
+              <h4 style={{ fontWeight: 600, fontSize: "0.95rem" }}>{user.name}</h4>
               <p style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
-                prajwal@email.com
+                {user.email}
               </p>
             </div>
           </div>
@@ -105,7 +122,11 @@ export default function AccountPage() {
               </button>
             );
           })}
-          <button className="account-sidebar__item" style={{ color: "var(--color-danger)", marginTop: 8 }}>
+          <button
+            className="account-sidebar__item"
+            style={{ color: "var(--color-danger)", marginTop: 8 }}
+            onClick={handleLogout}
+          >
             <LogOut size={18} />
             Sign Out
           </button>
@@ -116,67 +137,84 @@ export default function AccountPage() {
           {activeTab === "orders" && (
             <>
               <h2 className="account-content__title">My Orders</h2>
-              {orders.map((order) => (
-                <div className="order-card" key={order.id}>
-                  <div className="order-card__header">
-                    <div>
-                      <p className="order-card__id">{order.id}</p>
-                      <p className="order-card__date">{order.date}</p>
+              {loadingOrders ? (
+                <div style={{ textAlign: "center", padding: 40 }}>
+                  <Loader2 size={32} style={{ animation: "spin 1s linear infinite", color: "var(--color-primary)" }} />
+                </div>
+              ) : orders.length === 0 ? (
+                <div className="empty-state">
+                  <ShoppingBag size={48} className="empty-state__icon" />
+                  <h3 className="empty-state__title">No Orders Yet</h3>
+                  <p className="empty-state__text">Start shopping to see your orders here.</p>
+                  <Link href="/" className="btn btn--primary btn--sm">Shop Now</Link>
+                </div>
+              ) : (
+                orders.map((order) => (
+                  <div className="order-card" key={order._id}>
+                    <div className="order-card__header">
+                      <div>
+                        <p className="order-card__id">#{order._id.slice(-8).toUpperCase()}</p>
+                        <p className="order-card__date">
+                          {new Date(order.createdAt).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </p>
+                      </div>
+                      <span className={`order-card__status order-card__status--${order.status}`}>
+                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                      </span>
                     </div>
-                    <span className={`order-card__status order-card__status--${order.status}`}>
-                      {order.statusLabel}
-                    </span>
-                  </div>
-                  <div className="order-card__items">
-                    {order.items.map((item) => {
-                      const product = getProduct(item.productId);
-                      if (!product) return null;
-                      return (
-                        <div className="order-card__item" key={item.productId}>
+                    <div className="order-card__items">
+                      {order.items.map((item, i) => (
+                        <div className="order-card__item" key={i}>
                           <div className="order-card__item-image">
-                            <img src={product.images[0]} alt={product.name} />
+                            {item.image && <img src={item.image} alt={item.name} />}
                           </div>
                           <span className="order-card__item-name">
-                            {product.name} × {item.quantity}
+                            {item.name} × {item.quantity}
                           </span>
                           <span className="order-card__item-price">
-                            ${(product.price * item.quantity).toFixed(2)}
+                            ${(item.price * item.quantity).toFixed(2)}
                           </span>
                         </div>
-                      );
-                    })}
-                  </div>
+                      ))}
+                    </div>
 
-                  {/* Timeline */}
-                  <div className="order-timeline">
-                    {timelineSteps.map((step, i) => (
-                      <div
-                        key={step}
-                        className={`order-timeline__step ${i < order.timelineStep ? "order-timeline__step--done" : ""}`}
-                      >
-                        <div className="order-timeline__dot" />
-                        <span className="order-timeline__label">{step}</span>
-                      </div>
-                    ))}
-                  </div>
+                    {/* Timeline */}
+                    <div className="order-timeline">
+                      {timelineSteps.map((step, i) => (
+                        <div
+                          key={step}
+                          className={`order-timeline__step ${i < getTimelineStep(order.status) ? "order-timeline__step--done" : ""}`}
+                        >
+                          <div className="order-timeline__dot" />
+                          <span className="order-timeline__label">{step}</span>
+                        </div>
+                      ))}
+                    </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginTop: 16,
-                      paddingTop: 12,
-                      borderTop: "1px solid var(--color-border-light)",
-                    }}
-                  >
-                    <span style={{ fontSize: "0.88rem", fontWeight: 700 }}>
-                      Total: ${order.total.toFixed(2)}
-                    </span>
-                    <button className="btn btn--sm btn--outline">View Details</button>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginTop: 16,
+                        paddingTop: 12,
+                        borderTop: "1px solid var(--color-border-light)",
+                      }}
+                    >
+                      <span style={{ fontSize: "0.88rem", fontWeight: 700 }}>
+                        Total: ${order.total.toFixed(2)}
+                      </span>
+                      <span style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                        {order.paymentMethod === "cod" ? "Cash on Delivery" : order.paymentMethod === "card" ? "Card Payment" : "UPI"}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </>
           )}
 
@@ -185,21 +223,17 @@ export default function AccountPage() {
               <h2 className="account-content__title">My Profile</h2>
               <div style={{ maxWidth: 500 }}>
                 <div className="form-grid">
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="profile-firstName">First Name</label>
-                    <input className="form-input" type="text" id="profile-firstName" defaultValue="Prajwal" />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="profile-lastName">Last Name</label>
-                    <input className="form-input" type="text" id="profile-lastName" defaultValue="Chaple" />
+                  <div className="form-group form-group--full">
+                    <label className="form-label" htmlFor="profile-name">Full Name</label>
+                    <input className="form-input" type="text" id="profile-name" defaultValue={user.name} />
                   </div>
                   <div className="form-group form-group--full">
                     <label className="form-label" htmlFor="profile-email">Email</label>
-                    <input className="form-input" type="email" id="profile-email" defaultValue="prajwal@email.com" />
+                    <input className="form-input" type="email" id="profile-email" defaultValue={user.email} readOnly style={{ background: "var(--color-bg-secondary)" }} />
                   </div>
                   <div className="form-group form-group--full">
                     <label className="form-label" htmlFor="profile-phone">Phone</label>
-                    <input className="form-input" type="tel" id="profile-phone" defaultValue="+91 98765 43210" />
+                    <input className="form-input" type="tel" id="profile-phone" defaultValue={user.phone || ""} placeholder="+91 98765 43210" />
                   </div>
                 </div>
                 <button className="btn btn--primary" style={{ marginTop: 24 }}>Save Changes</button>
@@ -210,25 +244,11 @@ export default function AccountPage() {
           {activeTab === "wishlist" && (
             <>
               <h2 className="account-content__title">Wishlist</h2>
-              <div className="product-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-                {products.slice(0, 3).map((product) => (
-                  <div key={product.id} className="order-card" style={{ padding: 16 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div className="order-card__item-image" style={{ width: 64, height: 64 }}>
-                        <img src={product.images[0]} alt={product.name} />
-                      </div>
-                      <div>
-                        <p style={{ fontWeight: 600, fontSize: "0.88rem" }}>{product.name}</p>
-                        <p style={{ fontWeight: 700, fontSize: "0.95rem", marginTop: 4 }}>
-                          ${product.price.toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-                    <button className="btn btn--primary btn--sm btn--full" style={{ marginTop: 12 }}>
-                      Add to Cart
-                    </button>
-                  </div>
-                ))}
+              <div className="empty-state">
+                <Heart size={48} className="empty-state__icon" />
+                <h3 className="empty-state__title">Wishlist is empty</h3>
+                <p className="empty-state__text">Browse products and add your favorites!</p>
+                <Link href="/" className="btn btn--primary btn--sm">Browse Products</Link>
               </div>
             </>
           )}

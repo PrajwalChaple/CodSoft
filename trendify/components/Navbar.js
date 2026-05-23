@@ -2,10 +2,13 @@
 import Link from "next/link";
 import { ShoppingCart, Search, User, Phone, ChevronDown, Menu, X } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useCart } from "../context/CartContext";
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const cartCount = 3; // Static for now
+  const { user } = useAuth();
+  const { cartCount } = useCart();
 
   return (
     <>
@@ -60,9 +63,9 @@ export default function Navbar() {
 
           {/* Actions */}
           <div className="navbar__actions">
-            <Link href="/login" className="navbar__action-btn">
+            <Link href={user ? "/account" : "/login"} className="navbar__action-btn">
               <User size={20} />
-              <span>Account</span>
+              <span>{user ? user.name.split(" ")[0] : "Account"}</span>
             </Link>
             <Link href="/cart" className="navbar__action-btn">
               <ShoppingCart size={20} />

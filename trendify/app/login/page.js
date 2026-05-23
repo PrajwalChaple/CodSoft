@@ -1,10 +1,32 @@
 "use client";
 import Link from "next/link";
-import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "../../context/AuthContext";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
+  const router = useRouter();
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await login(email, password);
+      router.push("/account");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="auth-page">
@@ -12,7 +34,22 @@ export default function LoginPage() {
         <h1 className="auth-card__title">Welcome Back</h1>
         <p className="auth-card__subtitle">Sign in to your Trendify account</p>
 
-        <form className="auth-card__form" onSubmit={(e) => e.preventDefault()}>
+        {error && (
+          <div style={{
+            background: "#FEE2E2",
+            color: "#DC2626",
+            padding: "10px 14px",
+            borderRadius: 8,
+            fontSize: "0.85rem",
+            fontWeight: 500,
+            marginBottom: 16,
+            textAlign: "center",
+          }}>
+            {error}
+          </div>
+        )}
+
+        <form className="auth-card__form" onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label" htmlFor="login-email">Email Address</label>
             <div style={{ position: "relative" }}>
@@ -22,6 +59,9 @@ export default function LoginPage() {
                 id="login-email"
                 placeholder="you@example.com"
                 style={{ paddingLeft: 40 }}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
               />
               <Mail
                 size={18}
@@ -58,6 +98,9 @@ export default function LoginPage() {
                 id="login-password"
                 placeholder="Enter your password"
                 style={{ paddingLeft: 40, paddingRight: 40 }}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
               />
               <Lock
                 size={18}
@@ -89,8 +132,8 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <button type="submit" className="btn btn--primary btn--full">
-            Sign In
+          <button type="submit" className="btn btn--primary btn--full" disabled={loading}>
+            {loading ? <><Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> Signing In...</> : "Sign In"}
           </button>
         </form>
 
