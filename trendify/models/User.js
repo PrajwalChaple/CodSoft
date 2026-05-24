@@ -16,8 +16,17 @@ const UserSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, "Password is required"],
+      required: false, // Not required for Google auth users
       minlength: 6,
+    },
+    authProvider: {
+      type: String,
+      enum: ["email", "google"],
+      default: "email",
+    },
+    googleId: {
+      type: String,
+      default: "",
     },
     phone: {
       type: String,

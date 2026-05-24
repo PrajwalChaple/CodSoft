@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useContext, useState, useEffect } from "react";
+import { supabase } from "../lib/supabase";
 
 const AuthContext = createContext();
 
@@ -52,13 +53,47 @@ export function AuthProvider({ children }) {
     return data;
   }
 
+  async function loginWithGoogle() {
+    if (!supabase) {
+      throw new Error("Google login is not configured. Please set up Supabase.");
+    }
+
+    const redirectUrl = `${window.location.origin}/auth/callback`;
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: redirectUrl,
+      },
+    });
+
+    if (error) {
+      throw new Error(error.message || "Google login failed");
+    }
+
+    // The user will be redirected to Google, then back to /auth/callback
+    // No need to do anything else here
+    return data;
+  }
+
   async function logout() {
+    // Logout from our backend
     await fetch("/api/auth/logout", { method: "POST" });
+
+    // Also logout from Supabase if configured
+    if (supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // Ignore Supabase signout errors
+      }
+    }
+
     setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginWithGoogle, logout, checkAuth }}>
       {children}
     </AuthContext.Provider>
   );
