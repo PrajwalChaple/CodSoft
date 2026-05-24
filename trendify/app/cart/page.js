@@ -22,7 +22,8 @@ export default function CartPage() {
     );
   }
 
-  const freeShippingProgress = Math.min((subtotal / 50) * 100, 100);
+  const freeShippingThreshold = 500;
+  const freeShippingProgress = Math.min((subtotal / freeShippingThreshold) * 100, 100);
 
   return (
     <div className="cart-page">
@@ -57,7 +58,7 @@ export default function CartPage() {
                 </div>
               </div>
               <div className="cart-item__price">
-                {item.currency}{(item.price * item.quantity).toFixed(2)}
+                ₹{(item.price * item.quantity).toLocaleString("en-IN")}
               </div>
             </div>
           ))}
@@ -67,9 +68,9 @@ export default function CartPage() {
         <div className="order-summary">
           <h3 className="order-summary__title">Order Summary</h3>
 
-          {subtotal < 50 ? (
+          {subtotal < freeShippingThreshold ? (
             <div className="order-summary__shipping-progress">
-              🚚 Add ${(50 - subtotal).toFixed(2)} more for FREE shipping!
+              🚚 Add ₹{(freeShippingThreshold - subtotal).toLocaleString("en-IN")} more for FREE shipping!
               <div style={{
                 marginTop: 8,
                 height: 4,
@@ -94,21 +95,21 @@ export default function CartPage() {
 
           <div className="order-summary__row">
             <span>Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
+            <span>₹{subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
           </div>
           <div className="order-summary__row">
             <span>Shipping</span>
-            <span>{shipping === 0 ? "FREE" : `$${shipping.toFixed(2)}`}</span>
+            <span>{shipping === 0 ? "FREE" : `₹${shipping.toFixed(2)}`}</span>
           </div>
           {discount > 0 && (
             <div className="order-summary__row" style={{ color: "var(--color-success)" }}>
               <span>Discount (5%)</span>
-              <span>-${discount.toFixed(2)}</span>
+              <span>-₹{discount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
             </div>
           )}
           <div className="order-summary__row order-summary__row--total">
             <span>Total</span>
-            <span>${total.toFixed(2)}</span>
+            <span>₹{total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
           </div>
 
           <Link href="/checkout" className="btn btn--primary order-summary__btn">

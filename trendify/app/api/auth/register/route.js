@@ -6,7 +6,6 @@ import { signToken } from "../../../../lib/auth";
 
 export async function POST(request) {
   try {
-    await dbConnect();
     const { name, email, password } = await request.json();
 
     if (!name || !email || !password) {
@@ -15,6 +14,17 @@ export async function POST(request) {
 
     if (password.length < 6) {
       return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
+    }
+
+    // Connect to MongoDB — if this fails, the error will be caught below
+    try {
+      await dbConnect();
+    } catch (dbError) {
+      console.error("[Register] Database connection failed:", dbError.message);
+      return NextResponse.json(
+        { error: "Unable to connect to database. Please try again later." },
+        { status: 503 }
+      );
     }
 
     const existingUser = await User.findOne({ email: email.toLowerCase() });
@@ -29,6 +39,8 @@ export async function POST(request) {
       email: email.toLowerCase(),
       password: hashedPassword,
     });
+
+    console.log("[Register] ✅ User created:", user.email);
 
     const token = signToken({ userId: user._id, email: user.email, name: user.name });
 
@@ -47,7 +59,20 @@ export async function POST(request) {
 
     return response;
   } catch (error) {
-    console.error("Register error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("[Register] ❌ Error:", error.message);
+    console.error("[Register] Stack:", error.stack);
+
+    // Handle MongoDB duplicate key error
+    if (error.code === 11000) {
+      return NextResponse.json({ error: "Email already registered" }, { status: 400 });
+    }
+
+    // Handle validation errors
+    if (error.name === "ValidationError") {
+      const messages = Object.values(error.errors).map((e) => e.message);
+      return NextResponse.json({ error: messages.join(", ") }, { status: 400 });
+    }
+
+    return NextResponse.json({ error: "Registration failed. Please try again." }, { status: 500 });
   }
 }

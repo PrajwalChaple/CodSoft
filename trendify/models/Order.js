@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const OrderItemSchema = new mongoose.Schema({
-  product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
+  product: { type: String, required: true },
   name: { type: String, required: true },
   price: { type: Number, required: true },
   quantity: { type: Number, required: true, min: 1 },
@@ -18,16 +18,20 @@ const OrderSchema = new mongoose.Schema(
       lastName: String,
       email: String,
       phone: String,
-      street: String,
+      address: String,
       city: String,
       postalCode: String,
       country: String,
     },
     paymentMethod: {
       type: String,
-      enum: ["cod", "card", "upi"],
+      enum: ["cod", "card", "upi", "netbanking", "wallet", "razorpay"],
       default: "cod",
     },
+    paymentId: { type: String, default: "" },
+    razorpayOrderId: { type: String, default: "" },
+    isPaid: { type: Boolean, default: false },
+    paidAt: { type: Date },
     subtotal: { type: Number, required: true },
     shipping: { type: Number, default: 0 },
     discount: { type: Number, default: 0 },

@@ -1,16 +1,16 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, Banknote, Smartphone, Loader2, CheckCircle } from "lucide-react";
+import { CreditCard, Banknote, Smartphone, Loader2, CheckCircle, ShieldCheck, Download } from "lucide-react";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import Link from "next/link";
+import Script from "next/script";
 
 const paymentOptions = [
-  { id: "cod", label: "Cash on Delivery", icon: Banknote },
-  { id: "card", label: "Credit / Debit Card", icon: CreditCard },
-  { id: "upi", label: "UPI Payment", icon: Smartphone },
+  { id: "razorpay", label: "Pay Online (UPI / Card / Net Banking)", icon: CreditCard, desc: "UPI, Credit/Debit Card, Net Banking, Wallets" },
+  { id: "cod", label: "Cash on Delivery", icon: Banknote, desc: "Pay when you receive your order" },
 ];
 
 export default function CheckoutPage() {
@@ -19,15 +19,22 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { addToast } = useToast();
 
-  const [paymentMethod, setPaymentMethod] = useState("card");
+  const [paymentMethod, setPaymentMethod] = useState("razorpay");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState("");
-  const [error, setError] = useState("");
-  const [formData, setFormData] = useState({
+
+  // Simulated payment states
+  const [showMockModal, setShowMockModal] = useState(false);
+  const [mockOrderData, setMockOrderData] = useState(null);
+  const [mockResponseData, setMockResponseData] = useState(null);
+
+  // Shipping form
+  const [form, setForm] = useState({
     firstName: "",
     lastName: "",
-    email: user?.email || "",
+    email: "",
     phone: "",
     address: "",
     city: "",
@@ -35,9 +42,19 @@ export default function CheckoutPage() {
     country: "India",
   });
 
-  const handleChange = (e) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
+  function handleInputChange(e) {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  }
+
+  function validateForm() {
+    if (!form.firstName || !form.lastName || !form.email || !form.phone || !form.address || !form.city || !form.postalCode) {
+      return "Please fill all shipping details";
+    }
+    if (!/\S+@\S+\.\S+/.test(form.email)) return "Invalid email address";
+    if (!/^\d{10}$/.test(form.phone.replace(/\s/g, ""))) return "Enter valid 10-digit phone number";
+    if (!/^\d{6}$/.test(form.postalCode.replace(/\s/g, ""))) return "Enter valid 6-digit pin code";
+    return null;
+  }
 
   async function handlePlaceOrder() {
     setError("");
@@ -48,39 +65,183 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!formData.firstName || !formData.address || !formData.city) {
-      setError("Please fill all required shipping fields.");
+    if (cartCount === 0) {
+      setError("Your cart is empty");
       return;
     }
 
-    setLoading(true);
-    try {
-      const orderItems = cart.map((item) => ({
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    const orderData = {
+      items: cart.map((item) => ({
         product: item.productId,
         name: item.name,
         price: item.price,
         quantity: item.quantity,
         color: item.color,
         image: item.image,
-      }));
+      })),
+      shippingAddress: form,
+      paymentMethod,
+      subtotal,
+      shipping,
+      discount,
+      total,
+    };
 
-      const res = await fetch("/api/orders", {
+    if (paymentMethod === "razorpay") {
+      await handleRazorpayPayment(orderData);
+    } else {
+      await handleCODOrder(orderData);
+    }
+  }
+
+  async function handleMockSuccess() {
+    setShowMockModal(false);
+    setLoading(true);
+    try {
+      const verifyRes = await fetch("/api/payment/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: orderItems,
-          shippingAddress: formData,
-          paymentMethod,
-          subtotal,
-          shipping,
-          discount,
-          total,
+          razorpay_order_id: mockResponseData.orderId,
+          razorpay_payment_id: `pay_mock_${Date.now()}`,
+          razorpay_signature: "mock_signature",
+          orderData: mockOrderData,
+        }),
+      });
+
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok) throw new Error(verifyData.error);
+
+      setOrderPlaced(true);
+      setOrderId(verifyData.order.id);
+      clearCart();
+      addToast("Payment successful! Order placed 🎉", "success");
+    } catch (err) {
+      setError("Payment verification failed: " + err.message);
+      addToast("Payment verification failed", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleMockFail() {
+    setShowMockModal(false);
+    setError("Payment failed: Simulated failure");
+    addToast("Payment failed", "error");
+  }
+
+  function handleMockCancel() {
+    setShowMockModal(false);
+    addToast("Payment cancelled", "info");
+  }
+
+  async function handleRazorpayPayment(orderData) {
+    setLoading(true);
+    try {
+      // Step 1: Create Razorpay order
+      const res = await fetch("/api/payment/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: total,
+          currency: "INR",
+          receipt: `order_${Date.now()}`,
         }),
       });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create payment");
 
-      if (!res.ok) throw new Error(data.error || "Failed to place order");
+      if (data.isMock) {
+        setMockOrderData(orderData);
+        setMockResponseData(data);
+        setShowMockModal(true);
+        setLoading(false);
+        return;
+      }
+
+      // Step 2: Open Razorpay checkout
+      const options = {
+        key: data.key,
+        amount: data.amount,
+        currency: data.currency,
+        name: "Trendify",
+        description: `Order of ${cartCount} item(s)`,
+        order_id: data.orderId,
+        handler: async function (response) {
+          // Step 3: Verify payment
+          try {
+            const verifyRes = await fetch("/api/payment/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                orderData,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok) throw new Error(verifyData.error);
+
+            setOrderPlaced(true);
+            setOrderId(verifyData.order.id);
+            clearCart();
+            addToast("Payment successful! Order placed 🎉", "success");
+          } catch (err) {
+            setError("Payment verification failed: " + err.message);
+            addToast("Payment verification failed", "error");
+          }
+        },
+        prefill: {
+          name: `${form.firstName} ${form.lastName}`,
+          email: form.email,
+          contact: form.phone,
+        },
+        theme: {
+          color: "#1B4332",
+        },
+        modal: {
+          ondismiss: function () {
+            setLoading(false);
+            addToast("Payment cancelled", "info");
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", function (response) {
+        setError(`Payment failed: ${response.error.description}`);
+        addToast("Payment failed", "error");
+        setLoading(false);
+      });
+      rzp.open();
+    } catch (err) {
+      setError(err.message);
+      addToast(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCODOrder(orderData) {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderData),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Order failed");
 
       setOrderPlaced(true);
       setOrderId(data.order.id);
@@ -97,29 +258,43 @@ export default function CheckoutPage() {
   if (orderPlaced) {
     return (
       <div className="checkout-page">
-        <div className="empty-state">
-          <CheckCircle size={72} style={{ color: "var(--color-primary)", marginBottom: 16 }} />
-          <h2 className="empty-state__title">Order Placed Successfully! 🎉</h2>
-          <p className="empty-state__text">
-            Your order <strong>{orderId}</strong> has been confirmed.<br />
-            We&apos;ll send you an email with tracking details.
+        <Script src="https://checkout.razorpay.com/v1/checkout.js" />
+        <div className="order-success">
+          <div className="order-success__icon">
+            <CheckCircle size={64} />
+          </div>
+          <h2 className="order-success__title">Order Placed Successfully! 🎉</h2>
+          <p className="order-success__id">
+            Order ID: <strong>#{orderId?.toString().slice(-8).toUpperCase()}</strong>
           </p>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 8 }}>
-            <Link href="/account" className="btn btn--primary">View Orders</Link>
-            <Link href="/" className="btn btn--outline">Continue Shopping</Link>
+          <p className="order-success__text">
+            {paymentMethod === "razorpay"
+              ? "Payment received! Your order is being processed and will be shipped soon."
+              : "Your order is confirmed. Please keep the exact amount ready for Cash on Delivery."}
+          </p>
+          <div className="order-success__actions">
+            <Link href="/account?tab=orders" className="btn btn--primary">
+              View My Orders
+            </Link>
+            <Link href="/" className="btn btn--outline">
+              Continue Shopping
+            </Link>
           </div>
         </div>
       </div>
     );
   }
 
-  if (cart.length === 0) {
+  // Empty cart
+  if (cartCount === 0) {
     return (
       <div className="checkout-page">
         <div className="empty-state">
-          <h2 className="empty-state__title">No items to checkout</h2>
-          <p className="empty-state__text">Add items to your cart first.</p>
-          <Link href="/" className="btn btn--primary">Shop Now</Link>
+          <h2 className="empty-state__title">Your Cart is Empty</h2>
+          <p className="empty-state__text">Add some products before checkout.</p>
+          <Link href="/" className="btn btn--primary btn--sm">
+            Shop Now
+          </Link>
         </div>
       </div>
     );
@@ -127,184 +302,235 @@ export default function CheckoutPage() {
 
   return (
     <div className="checkout-page">
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" />
       <h1 className="checkout-page__title">Checkout</h1>
 
-      {error && (
-        <div style={{
-          background: "#FEE2E2",
-          color: "#DC2626",
-          padding: "12px 16px",
-          borderRadius: 8,
-          fontSize: "0.85rem",
-          fontWeight: 500,
-          marginBottom: 24,
-        }}>
-          {error}
-        </div>
-      )}
-
       <div className="checkout-page__layout">
-        {/* Left - Form */}
+        {/* Left — Shipping & Payment */}
         <div>
-          {/* Step 1: Review Items */}
-          <div className="checkout-section">
-            <h2 className="checkout-section__title">
-              <span className="checkout-section__title-num">1</span>
-              Review Item And Shipping
-            </h2>
-            {cart.map((item) => (
-              <div className="checkout-item" key={`${item.productId}-${item.color}`}>
-                <div className="checkout-item__image">
-                  <img src={item.image} alt={item.name} />
-                </div>
-                <div className="checkout-item__details">
-                  <h4 className="checkout-item__name">{item.name}</h4>
-                  <p className="checkout-item__meta">{item.color ? `Color: ${item.color}` : item.brand}</p>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <p className="checkout-item__price">
-                    {item.currency}{item.price.toFixed(2)}
-                  </p>
-                  <p className="checkout-item__qty">Qty: {item.quantity}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Step 2: Delivery Information */}
-          <div className="checkout-section">
-            <h2 className="checkout-section__title">
-              <span className="checkout-section__title-num">2</span>
-              Delivery Information
-            </h2>
+          {/* Shipping */}
+          <div className="checkout-card">
+            <h3 className="checkout-card__title">📦 Shipping Details</h3>
             <div className="form-grid">
               <div className="form-group">
                 <label className="form-label" htmlFor="checkout-firstName">First Name *</label>
-                <input className="form-input" type="text" id="checkout-firstName" name="firstName" placeholder="John" value={formData.firstName} onChange={handleChange} required />
+                <input className="form-input" type="text" id="checkout-firstName" name="firstName" value={form.firstName} onChange={handleInputChange} placeholder="Prajwal" required />
               </div>
               <div className="form-group">
-                <label className="form-label" htmlFor="checkout-lastName">Last Name</label>
-                <input className="form-input" type="text" id="checkout-lastName" name="lastName" placeholder="Doe" value={formData.lastName} onChange={handleChange} />
+                <label className="form-label" htmlFor="checkout-lastName">Last Name *</label>
+                <input className="form-input" type="text" id="checkout-lastName" name="lastName" value={form.lastName} onChange={handleInputChange} placeholder="Chaple" required />
               </div>
               <div className="form-group">
-                <label className="form-label" htmlFor="checkout-email">Email</label>
-                <input className="form-input" type="email" id="checkout-email" name="email" placeholder="john@example.com" value={formData.email} onChange={handleChange} />
+                <label className="form-label" htmlFor="checkout-email">Email *</label>
+                <input className="form-input" type="email" id="checkout-email" name="email" value={form.email} onChange={handleInputChange} placeholder="you@example.com" required />
               </div>
               <div className="form-group">
-                <label className="form-label" htmlFor="checkout-phone">Phone</label>
-                <input className="form-input" type="tel" id="checkout-phone" name="phone" placeholder="+91 98765 43210" value={formData.phone} onChange={handleChange} />
+                <label className="form-label" htmlFor="checkout-phone">Phone (10 digits) *</label>
+                <input className="form-input" type="tel" id="checkout-phone" name="phone" value={form.phone} onChange={handleInputChange} placeholder="9876543210" required />
               </div>
               <div className="form-group form-group--full">
-                <label className="form-label" htmlFor="checkout-address">Street Address *</label>
-                <input className="form-input" type="text" id="checkout-address" name="address" placeholder="123, Street Name, Area" value={formData.address} onChange={handleChange} required />
+                <label className="form-label" htmlFor="checkout-address">Address *</label>
+                <input className="form-input" type="text" id="checkout-address" name="address" value={form.address} onChange={handleInputChange} placeholder="House No, Street, Area" required />
               </div>
               <div className="form-group">
                 <label className="form-label" htmlFor="checkout-city">City *</label>
-                <input className="form-input" type="text" id="checkout-city" name="city" placeholder="Mumbai" value={formData.city} onChange={handleChange} required />
+                <input className="form-input" type="text" id="checkout-city" name="city" value={form.city} onChange={handleInputChange} placeholder="Mumbai" required />
               </div>
               <div className="form-group">
-                <label className="form-label" htmlFor="checkout-postalCode">Postal Code</label>
-                <input className="form-input" type="text" id="checkout-postalCode" name="postalCode" placeholder="400001" value={formData.postalCode} onChange={handleChange} />
+                <label className="form-label" htmlFor="checkout-postalCode">PIN Code *</label>
+                <input className="form-input" type="text" id="checkout-postalCode" name="postalCode" value={form.postalCode} onChange={handleInputChange} placeholder="400001" required maxLength={6} />
               </div>
               <div className="form-group">
                 <label className="form-label" htmlFor="checkout-country">Country</label>
-                <select className="form-input" id="checkout-country" name="country" value={formData.country} onChange={handleChange}>
-                  <option value="India">India</option>
-                  <option value="USA">USA</option>
-                  <option value="UK">UK</option>
-                  <option value="Canada">Canada</option>
+                <select className="form-input" id="checkout-country" name="country" value={form.country} onChange={handleInputChange}>
+                  <option>India</option>
                 </select>
               </div>
             </div>
           </div>
 
-          {/* Step 3: Payment Method */}
-          <div className="checkout-section">
-            <h2 className="checkout-section__title">
-              <span className="checkout-section__title-num">3</span>
-              Payment Details
-            </h2>
-            <div className="payment-methods">
-              {paymentOptions.map((option) => {
-                const Icon = option.icon;
+          {/* Payment Method */}
+          <div className="checkout-card" style={{ marginTop: 24 }}>
+            <h3 className="checkout-card__title">💳 Payment Method</h3>
+            <div className="payment-options">
+              {paymentOptions.map((opt) => {
+                const Icon = opt.icon;
                 return (
                   <button
-                    key={option.id}
-                    className={`payment-method ${paymentMethod === option.id ? "payment-method--active" : ""}`}
-                    onClick={() => setPaymentMethod(option.id)}
+                    key={opt.id}
+                    className={`payment-option ${paymentMethod === opt.id ? "payment-option--active" : ""}`}
+                    onClick={() => setPaymentMethod(opt.id)}
                   >
-                    <div className="payment-method__radio" />
-                    <Icon size={20} />
-                    <span className="payment-method__label">{option.label}</span>
+                    <div className="payment-option__radio">
+                      <div className={`payment-option__radio-inner ${paymentMethod === opt.id ? "payment-option__radio-inner--active" : ""}`} />
+                    </div>
+                    <Icon size={22} />
+                    <div>
+                      <p className="payment-option__label">{opt.label}</p>
+                      <p className="payment-option__desc">{opt.desc}</p>
+                    </div>
                   </button>
                 );
               })}
             </div>
 
-            {paymentMethod === "card" && (
-              <div className="form-grid" style={{ marginTop: 20 }}>
-                <div className="form-group form-group--full">
-                  <label className="form-label" htmlFor="checkout-cardNumber">Card Number</label>
-                  <input className="form-input" type="text" id="checkout-cardNumber" placeholder="1234 5678 9012 3456" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="checkout-expiry">Expiry Date</label>
-                  <input className="form-input" type="text" id="checkout-expiry" placeholder="MM/YY" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="checkout-cvv">CVV</label>
-                  <input className="form-input" type="text" id="checkout-cvv" placeholder="123" />
-                </div>
+            {paymentMethod === "razorpay" && (
+              <div style={{
+                marginTop: 16,
+                padding: "12px 16px",
+                background: "var(--color-primary-light)",
+                borderRadius: 10,
+                fontSize: "0.83rem",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                color: "var(--color-primary)",
+              }}>
+                <ShieldCheck size={18} />
+                <span>Secure payment powered by <strong>Razorpay</strong>. Supports UPI (Google Pay, PhonePe, Paytm), Cards, Net Banking & Wallets.</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Right - Order Summary */}
-        <div className="order-summary">
-          <h3 className="order-summary__title">Order Summary</h3>
+        {/* Right — Order Summary */}
+        <div>
+          <div className="checkout-card checkout-card--summary">
+            <h3 className="checkout-card__title">🧾 Order Summary</h3>
 
-          <div className="order-summary__row">
-            <span>Subtotal ({cartCount} items)</span>
-            <span>${subtotal.toFixed(2)}</span>
-          </div>
-          <div className="order-summary__row">
-            <span>Shipping</span>
-            <span style={{ color: shipping === 0 ? "var(--color-success)" : undefined, fontWeight: 600 }}>
-              {shipping === 0 ? "FREE" : `$${shipping.toFixed(2)}`}
-            </span>
-          </div>
-          {discount > 0 && (
-            <div className="order-summary__row" style={{ color: "var(--color-success)" }}>
-              <span>Discount (5%)</span>
-              <span>-${discount.toFixed(2)}</span>
+            <div className="checkout-items">
+              {cart.map((item, i) => (
+                <div key={i} className="checkout-item">
+                  <div className="checkout-item__image">
+                    {item.image && <img src={item.image} alt={item.name} />}
+                  </div>
+                  <div className="checkout-item__info">
+                    <p className="checkout-item__name">{item.name}</p>
+                    <p className="checkout-item__meta">
+                      {item.color && <span>{item.color} · </span>}
+                      Qty: {item.quantity}
+                    </p>
+                  </div>
+                  <p className="checkout-item__price">
+                    ₹{(item.price * item.quantity).toLocaleString("en-IN")}
+                  </p>
+                </div>
+              ))}
             </div>
-          )}
-          <div className="order-summary__row order-summary__row--total">
-            <span>Total</span>
-            <span>${total.toFixed(2)}</span>
-          </div>
 
-          <button
-            className="btn btn--primary order-summary__btn"
-            style={{ marginTop: 24 }}
-            onClick={handlePlaceOrder}
-            disabled={loading}
-          >
-            {loading ? <><Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> Placing Order...</> : "Place Order"}
-          </button>
+            <div className="checkout-summary">
+              <div className="checkout-summary__row">
+                <span>Subtotal ({cartCount} items)</span>
+                <span>₹{subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="checkout-summary__row">
+                <span>Shipping</span>
+                <span style={{ color: shipping === 0 ? "var(--color-success)" : undefined }}>
+                  {shipping === 0 ? "FREE" : `₹${shipping.toFixed(2)}`}
+                </span>
+              </div>
+              {discount > 0 && (
+                <div className="checkout-summary__row" style={{ color: "var(--color-success)" }}>
+                  <span>Discount (5%)</span>
+                  <span>-₹{discount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              <div className="checkout-summary__total">
+                <span>Total</span>
+                <span>₹{total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
 
-          {!user && (
-            <p style={{ marginTop: 12, fontSize: "0.8rem", color: "var(--color-danger)", textAlign: "center" }}>
-              Please <Link href="/login" style={{ fontWeight: 600, textDecoration: "underline" }}>login</Link> to place your order.
+            {error && (
+              <div style={{
+                background: "#FEE2E2",
+                color: "#DC2626",
+                padding: "10px 14px",
+                borderRadius: 8,
+                fontSize: "0.83rem",
+                fontWeight: 500,
+                marginBottom: 12,
+              }}>
+                {error}
+              </div>
+            )}
+
+            <button
+              className="btn btn--primary btn--full"
+              onClick={handlePlaceOrder}
+              disabled={loading}
+              style={{ marginTop: 4 }}
+            >
+              {loading ? (
+                <><Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> Processing...</>
+              ) : paymentMethod === "razorpay" ? (
+                `Pay ₹${total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+              ) : (
+                "Place Order (COD)"
+              )}
+            </button>
+
+            <p style={{
+              textAlign: "center",
+              fontSize: "0.75rem",
+              color: "var(--color-text-light)",
+              marginTop: 10,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 4,
+            }}>
+              <ShieldCheck size={13} /> Your payment information is secure & encrypted
             </p>
-          )}
-
-          <p style={{ marginTop: 12, fontSize: "0.75rem", color: "var(--color-text-light)", textAlign: "center", lineHeight: 1.5 }}>
-            By placing this order, you agree to our Terms of Service and Privacy Policy.
-          </p>
+          </div>
         </div>
       </div>
+
+      {showMockModal && (
+        <div className="mock-payment-overlay">
+          <div className="mock-payment-modal animate-slide-up">
+            <div className="mock-payment-header">
+              <ShieldCheck className="mock-payment-icon" size={24} />
+              <h3>Trendify Pay (Secure Checkout)</h3>
+            </div>
+            <div className="mock-payment-body">
+              <span className="mock-payment-badge">Simulated Gateway</span>
+              <p className="mock-payment-info">
+                This is a demo payment mode simulating <strong>Razorpay</strong>. You can test both success and failure responses.
+              </p>
+              
+              <div className="mock-payment-details">
+                <div className="mock-payment-row">
+                  <span>Merchant:</span>
+                  <strong>Trendify India</strong>
+                </div>
+                <div className="mock-payment-row">
+                  <span>Amount:</span>
+                  <strong style={{ color: "var(--color-primary)" }}>
+                    ₹{total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </strong>
+                </div>
+                <div className="mock-payment-row">
+                  <span>Order Reference:</span>
+                  <code>{mockResponseData?.orderId}</code>
+                </div>
+              </div>
+
+              <div className="mock-payment-actions">
+                <button className="btn btn--primary btn--full" onClick={handleMockSuccess} style={{ backgroundColor: "#2D6A4F", borderColor: "#2D6A4F" }}>
+                  Simulate Success
+                </button>
+                <button className="btn btn--danger btn--full" onClick={handleMockFail} style={{ marginTop: 8 }}>
+                  Simulate Failure
+                </button>
+                <button className="btn btn--outline btn--full" onClick={handleMockCancel} style={{ marginTop: 8 }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

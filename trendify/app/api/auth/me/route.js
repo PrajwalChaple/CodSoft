@@ -10,9 +10,16 @@ export async function GET() {
       return NextResponse.json({ user: null }, { status: 401 });
     }
 
-    await dbConnect();
+    try {
+      await dbConnect();
+    } catch (dbError) {
+      console.error("[Auth/Me] Database connection failed:", dbError.message);
+      return NextResponse.json({ user: null }, { status: 503 });
+    }
+
     const user = await User.findById(authUser.userId).select("-password");
     if (!user) {
+      console.warn("[Auth/Me] Token valid but user not found in DB. userId:", authUser.userId);
       return NextResponse.json({ user: null }, { status: 401 });
     }
 
@@ -26,6 +33,7 @@ export async function GET() {
       },
     });
   } catch (error) {
+    console.error("[Auth/Me] ❌ Error:", error.message);
     return NextResponse.json({ user: null }, { status: 401 });
   }
 }

@@ -20,16 +20,31 @@ async function dbConnect() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      serverSelectionTimeoutMS: 10000, // 10 second timeout
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
     };
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      return mongoose;
-    });
+
+    console.log("[MongoDB] Attempting to connect...");
+
+    cached.promise = mongoose
+      .connect(MONGODB_URI, opts)
+      .then((mongoose) => {
+        console.log("[MongoDB] ✅ Connected successfully!");
+        return mongoose;
+      })
+      .catch((err) => {
+        console.error("[MongoDB] ❌ Connection FAILED:", err.message);
+        cached.promise = null;
+        throw err;
+      });
   }
 
   try {
     cached.conn = await cached.promise;
   } catch (e) {
     cached.promise = null;
+    console.error("[MongoDB] ❌ Failed to establish connection:", e.message);
     throw e;
   }
 

@@ -6,11 +6,21 @@ import { signToken } from "../../../../lib/auth";
 
 export async function POST(request) {
   try {
-    await dbConnect();
     const { email, password } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
+    }
+
+    // Connect to MongoDB
+    try {
+      await dbConnect();
+    } catch (dbError) {
+      console.error("[Login] Database connection failed:", dbError.message);
+      return NextResponse.json(
+        { error: "Unable to connect to database. Please try again later." },
+        { status: 503 }
+      );
     }
 
     const user = await User.findOne({ email: email.toLowerCase() });
@@ -24,6 +34,8 @@ export async function POST(request) {
     }
 
     const token = signToken({ userId: user._id, email: user.email, name: user.name });
+
+    console.log("[Login] ✅ User logged in:", user.email);
 
     const response = NextResponse.json({
       message: "Login successful",
@@ -40,7 +52,8 @@ export async function POST(request) {
 
     return response;
   } catch (error) {
-    console.error("Login error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("[Login] ❌ Error:", error.message);
+    console.error("[Login] Stack:", error.stack);
+    return NextResponse.json({ error: "Login failed. Please try again." }, { status: 500 });
   }
 }

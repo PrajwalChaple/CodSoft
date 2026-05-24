@@ -6,7 +6,7 @@ import FilterBar from "../components/FilterBar";
 import ProductCard from "../components/ProductCard";
 import CategoryCard from "../components/CategoryCard";
 import { products, categories } from "../data/products";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Flame, Sparkles, Clock, Tag } from "lucide-react";
 import Link from "next/link";
 
 function HomeContent() {
@@ -50,14 +50,14 @@ function HomeContent() {
       filteredProducts.sort((a, b) => b.id - a.id);
       break;
     default:
-      // Featured first
       filteredProducts.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
   }
 
   const isFiltered = searchQuery || categoryFilter || sortBy;
-  const featuredProducts = isFiltered ? filteredProducts : filteredProducts.filter((p) => p.featured);
-  const similarProducts = products.slice(6, 10);
-  const recentProducts = products.slice(0, 4);
+  const featuredProducts = products.filter((p) => p.featured);
+  const dealProducts = products.filter((p) => p.deal).slice(0, 8);
+  const newArrivals = [...products].sort((a, b) => b.id - a.id).slice(0, 4);
+  const bestSellers = [...products].sort((a, b) => b.reviews - a.reviews).slice(0, 4);
 
   return (
     <>
@@ -96,18 +96,9 @@ function HomeContent() {
         </div>
       )}
 
-      {/* Main Content with Sidebar */}
-      <div className="section" style={{ display: "flex", gap: 32, alignItems: "flex-start" }}>
-        {/* Products Grid */}
-        <div style={{ flex: 1 }}>
-          {!isFiltered && (
-            <div className="section__header">
-              <h2 className="section__title">Headphones For You!</h2>
-              <Link href="/?category=Headphones" className="section__view-all">
-                View All <ArrowRight size={16} />
-              </Link>
-            </div>
-          )}
+      {/* Filtered Results */}
+      {isFiltered && (
+        <div className="section">
           {filteredProducts.length === 0 ? (
             <div className="empty-state" style={{ padding: "40px 0" }}>
               <h3 className="empty-state__title">No products found</h3>
@@ -116,62 +107,99 @@ function HomeContent() {
             </div>
           ) : (
             <div className="product-grid">
-              {(isFiltered ? filteredProducts : featuredProducts).map((product, i) => (
+              {filteredProducts.map((product, i) => (
                 <ProductCard key={product.id} product={product} filled={i === 1} />
               ))}
             </div>
           )}
         </div>
-
-        {/* Sidebar - Categories */}
-        <div style={{ width: 280, flexShrink: 0 }} className="home-sidebar">
-          <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 20 }}>
-            Popular Categories
-          </h3>
-          <div className="categories-grid">
-            {categories.map((cat) => (
-              <CategoryCard key={cat.name} category={cat} />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Similar Items */}
-      {!isFiltered && (
-        <div className="section" style={{ background: "var(--color-bg-cream)", marginLeft: 0, marginRight: 0, maxWidth: "100%", padding: "40px calc((100% - var(--max-width)) / 2 + 24px)" }}>
-          <div className="section__header">
-            <h2 className="section__title" style={{ fontStyle: "italic" }}>
-              Similar Items You Might Like
-            </h2>
-            <Link href="/?sort=rating" className="section__view-all">
-              View All <ArrowRight size={16} />
-            </Link>
-          </div>
-          <div className="product-grid">
-            {similarProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        </div>
       )}
 
-      {/* Recently Viewed */}
+      {/* ===== HOME SECTIONS (only when NOT filtered) ===== */}
       {!isFiltered && (
-        <div className="section">
-          <div className="section__header">
-            <h2 className="section__title" style={{ fontStyle: "italic" }}>
-              Recently Viewed
-            </h2>
-            <Link href="/?sort=newest" className="section__view-all">
-              View All <ArrowRight size={16} />
-            </Link>
+        <>
+          {/* Featured Products + Categories Sidebar */}
+          <div className="section" style={{ display: "flex", gap: 32, alignItems: "flex-start" }}>
+            <div style={{ flex: 1 }}>
+              <div className="section__header">
+                <h2 className="section__title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Flame size={22} style={{ color: "var(--color-danger)" }} /> Trending Now
+                </h2>
+                <Link href="/?sort=rating" className="section__view-all">
+                  View All <ArrowRight size={16} />
+                </Link>
+              </div>
+              <div className="product-grid">
+                {featuredProducts.slice(0, 8).map((product, i) => (
+                  <ProductCard key={product.id} product={product} filled={i === 1} />
+                ))}
+              </div>
+            </div>
+
+            {/* Sidebar - Categories */}
+            <div style={{ width: 280, flexShrink: 0 }} className="home-sidebar">
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 20 }}>
+                Shop by Category
+              </h3>
+              <div className="categories-grid">
+                {categories.map((cat) => (
+                  <CategoryCard key={cat.name} category={cat} />
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="product-grid">
-            {recentProducts.map((product, i) => (
-              <ProductCard key={product.id} product={product} filled={i === 1} />
-            ))}
+
+          {/* Hot Deals */}
+          <div className="section" style={{ background: "var(--color-bg-cream)", marginLeft: 0, marginRight: 0, maxWidth: "100%", padding: "40px calc((100% - var(--max-width)) / 2 + 24px)" }}>
+            <div className="section__header">
+              <h2 className="section__title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Tag size={20} style={{ color: "var(--color-primary)" }} /> Hot Deals
+              </h2>
+              <Link href="/?sort=price-asc" className="section__view-all">
+                View All <ArrowRight size={16} />
+              </Link>
+            </div>
+            <div className="product-grid">
+              {dealProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
           </div>
-        </div>
+
+          {/* New Arrivals */}
+          <div className="section">
+            <div className="section__header">
+              <h2 className="section__title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Sparkles size={20} style={{ color: "#F59E0B" }} /> New Arrivals
+              </h2>
+              <Link href="/?sort=newest" className="section__view-all">
+                View All <ArrowRight size={16} />
+              </Link>
+            </div>
+            <div className="product-grid">
+              {newArrivals.map((product, i) => (
+                <ProductCard key={product.id} product={product} filled={i === 0} />
+              ))}
+            </div>
+          </div>
+
+          {/* Best Sellers */}
+          <div className="section">
+            <div className="section__header">
+              <h2 className="section__title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Clock size={20} style={{ color: "#6366F1" }} /> Best Sellers
+              </h2>
+              <Link href="/?sort=rating" className="section__view-all">
+                View All <ArrowRight size={16} />
+              </Link>
+            </div>
+            <div className="product-grid">
+              {bestSellers.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </div>
+        </>
       )}
     </>
   );

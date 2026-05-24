@@ -30,7 +30,7 @@ export default function Footer() {
             </div>
             <p className="footer__desc">
               Your one-stop destination for premium products at unbeatable prices.
-              Shop the latest trends with free shipping on orders over $50.
+              Shop the latest trends with free shipping on orders over ₹500.
             </p>
             <div className="footer__social">
               <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="footer__social-link" aria-label="Facebook">

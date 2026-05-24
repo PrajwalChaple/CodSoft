@@ -11,7 +11,7 @@ export default function HeroBanner() {
             Grab Upto <span>50% Off</span> On Selected Headphones
           </h1>
           <p className="hero__subtitle">
-            Discover premium audio gear at unbeatable prices. Free shipping on all orders over $50.
+            Discover premium audio gear at unbeatable prices. Free shipping on all orders over ₹500.
           </p>
           <Link href="/" className="hero__cta">
             Buy Now <ArrowRight size={18} />

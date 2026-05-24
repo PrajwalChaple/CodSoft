@@ -1,13 +1,15 @@
 import Link from "next/link";
-import { Armchair, Headphones, Footprints, ShoppingBag, Laptop, BookOpen } from "lucide-react";
+import { Headphones, Smartphone, Laptop, Watch, Footprints, ShoppingBag, Shirt, Home } from "lucide-react";
 
 const iconMap = {
-  Armchair,
   Headphones,
+  Smartphone,
+  Laptop,
+  Watch,
   Footprints,
   ShoppingBag,
-  Laptop,
-  BookOpen,
+  Shirt,
+  Home,
 };
 
 export default function CategoryCard({ category }) {
@@ -20,7 +22,7 @@ export default function CategoryCard({ category }) {
       </div>
       <div className="category-card__info">
         <h4>{category.name}</h4>
-        <p>{category.items} Item Available</p>
+        <p>{category.items} Items Available</p>
       </div>
     </Link>
   );

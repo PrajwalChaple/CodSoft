@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 const categoryFilters = [
   "Headphones",
+  "Smartphones",
   "Laptops",
-  "Bags",
+  "Watches",
   "Shoes",
-  "Furniture",
-  "Books",
+  "Bags",
+  "Clothing",
+  "Home & Kitchen",
 ];
 
 const sortOptions = [
