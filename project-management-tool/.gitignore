@@ -1,7 +1,0 @@
-client/node_modules/
-client/dist/
-client/dist-ssr/
-server/node_modules/
-server/.env
-*.log
-.DS_Store
